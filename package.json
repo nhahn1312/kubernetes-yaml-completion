@@ -1,0 +1,90 @@
+{
+    "name": "yaml-kubernetes-completion",
+    "description": "A language server example",
+    "author": "Microsoft Corporation",
+    "license": "MIT",
+    "version": "1.0.0",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Microsoft/vscode-extension-samples"
+    },
+    "publisher": "nhahn",
+    "categories": [],
+    "keywords": [
+        "multi-root ready"
+    ],
+    "engines": {
+        "vscode": "^1.74.0"
+    },
+    "activationEvents": [
+        "onLanguage:yaml"
+    ],
+    "main": "./client/out/extension",
+    "contributes": {
+        "configuration": {
+            "type": "object",
+            "title": "Example configuration",
+            "properties": {
+                "yamlKubernetesCompletion.kubectl.cacheTimeout": {
+                    "scope": "window",
+                    "type": "number",
+                    "default": 600,
+                    "description": "Controls the time in seconds until the information from the cluster is refreshed"
+                },
+                "yamlKubernetesCompletion.completion.indentation": {
+                    "scope": "window",
+                    "type": "number",
+                    "default": 4,
+                    "description": "Controls the number of spaces used as indentation for the YAML documents."
+                },
+                "yamlKubernetesCompletion.validation.associatedFiles": {
+                    "scope": "window",
+                    "type": "array",
+                    "minItems": 1,
+                    "default": [
+                        "kubernetes.yaml"
+                    ],
+                    "description": "Controls which files with given name are validated. Regex is supported."
+                },
+                "languageServerExample.maxNumberOfProblems": {
+                    "scope": "resource",
+                    "type": "number",
+                    "default": 100,
+                    "description": "Controls the maximum number of problems produced by the server."
+                },
+                "languageServerExample.trace.server": {
+                    "scope": "window",
+                    "type": "string",
+                    "enum": [
+                        "off",
+                        "messages",
+                        "verbose"
+                    ],
+                    "default": "off",
+                    "description": "Traces the communication between VS Code and the language server."
+                }
+            }
+        }
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -b",
+        "watch": "tsc -b -w",
+        "lint": "eslint ./client/src ./server/src --ext .ts,.tsx",
+        "format": "prettier --write \"server/**/*.ts\" \"client/**/*.ts\"",
+        "postinstall": "cd client && npm install && cd ../server && npm install && cd ..",
+        "test": "sh ./scripts/e2e.sh"
+    },
+    "devDependencies": {
+        "@types/mocha": "^9.1.0",
+        "@types/node": "^16.11.7",
+        "@typescript-eslint/eslint-plugin": "^5.42.0",
+        "@typescript-eslint/parser": "^5.42.0",
+        "eslint": "^8.26.0",
+        "eslint-config-prettier": "^8.6.0",
+        "eslint-plugin-prettier": "^4.2.1",
+        "mocha": "^9.2.1",
+        "prettier": "2.8.4",
+        "typescript": "^4.8.4"
+    }
+}
