@@ -121,7 +121,7 @@ export class AstConverter {
             end = valueNode.range[1];
         }
 
-        if (!!start && !!end) {
+        if (start !== null && end !== null) {
             const range: IRange = this.convertRange([start, end, end]);
             const astStringNode = this.convert(
                 keyNode,
