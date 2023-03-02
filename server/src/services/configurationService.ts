@@ -12,6 +12,7 @@ import { ArrayUtils } from '../utils/array';
 export interface YamlKubernetesCompletionSettings {
     kubectl: {
         cacheTimeout: number;
+        configFilePath: string;
     };
     completion: {
         indentation: number;
@@ -166,7 +167,8 @@ export class ConfigurationService {
     public getDefaultSettings(): YamlKubernetesCompletionSettings {
         return {
             kubectl: {
-                cacheTimeout: 600
+                cacheTimeout: 600,
+                configFilePath: ''
             },
             completion: {
                 indentation: 4

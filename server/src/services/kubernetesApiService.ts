@@ -1,10 +1,15 @@
 import { AxiosInstance, AxiosRequestConfig } from 'axios';
-import { YamlKubernetesCompletionSettings } from './settingsService';
+import { YamlKubernetesCompletionSettings } from './configurationService';
 import * as k8s from '@kubernetes/client-node';
 import { V1APIResourceList, V1GroupVersionForDiscovery } from '@kubernetes/client-node';
 import axios from 'axios';
 import https from 'https';
 import request from 'request';
+
+interface RawKubernetesResourceInfo {
+    list: V1APIResourceList;
+    groupVersion: string;
+}
 
 export class KubernetsApiService {
     private initialized = false;
@@ -13,12 +18,21 @@ export class KubernetsApiService {
     private kubeConf: k8s.KubeConfig;
     private abortController: AbortController | undefined;
     private currentCluster: k8s.Cluster | null;
-    private kindList: string[];
+    private resourceInfo: Map<string, string>;
+    private static readonly SUPPORTED_VERSION = 'v1';
 
     constructor(settings: YamlKubernetesCompletionSettings) {
-        this.kindList = [];
         this.kubeConf = new k8s.KubeConfig();
-        this.kubeConf.loadFromDefault();
+        this.resourceInfo = new Map();
+
+        //load config
+        const configFilePath = settings.kubectl.configFilePath;
+        if (configFilePath.length === 0) {
+            this.kubeConf.loadFromDefault();
+        } else {
+            this.kubeConf.loadFromFile(configFilePath);
+        }
+
         const options: request.Options = {
             url: ''
         };
@@ -62,7 +76,9 @@ export class KubernetsApiService {
         return res.body.groups;
     }
 
-    private async getResourcesForApisApiGroups(version: V1GroupVersionForDiscovery): Promise<k8s.V1APIResourceList> {
+    private async getResourcesForApisApiGroups(
+        version: V1GroupVersionForDiscovery
+    ): Promise<RawKubernetesResourceInfo> {
         this.abortController = new AbortController();
         if (this.currentCluster) {
             const options: AxiosRequestConfig = {
@@ -72,7 +88,10 @@ export class KubernetsApiService {
                 `${this.currentCluster.server}/apis/${version.groupVersion}`,
                 options
             );
-            return res.data;
+            return {
+                list: res.data,
+                groupVersion: version.groupVersion
+            };
         }
         return Promise.reject('kubernetes cluster is not defined');
     }
@@ -82,17 +101,21 @@ export class KubernetsApiService {
         return res.body.versions;
     }
 
-    private async getCoreApiV1Resources(): Promise<V1APIResourceList> {
+    private async getCoreApiV1Resources(): Promise<RawKubernetesResourceInfo> {
         const coreApiv1Client = this.kubeConf.makeApiClient(k8s.CoreV1Api);
         const res = await coreApiv1Client.getAPIResources();
-        return res.body;
+        const resources = res.body;
+        return {
+            list: resources,
+            groupVersion: resources.groupVersion
+        };
     }
 
-    private addToKindList(resourceList: V1APIResourceList): void {
-        for (const resource of resourceList.resources) {
-            const resourceKind = resource.kind;
-            if (!this.kindList.includes(resourceKind)) {
-                this.kindList.push(resourceKind);
+    private addToKindList(rawResourceInfo: RawKubernetesResourceInfo): void {
+        for (const resource of rawResourceInfo.list.resources) {
+            const kind = resource.kind;
+            if (!this.resourceInfo.has(kind)) {
+                this.resourceInfo.set(kind, rawResourceInfo.groupVersion);
             }
         }
     }
@@ -101,25 +124,24 @@ export class KubernetsApiService {
         this.abortController = new AbortController();
 
         const promisesToFulFil: Promise<any>[] = [];
-        const promisesToSettle: Promise<V1APIResourceList>[] = [];
+        const promisesToSettle: Promise<RawKubernetesResourceInfo>[] = [];
 
         try {
             promisesToFulFil.push(
                 this.getApisApiGroups().then((groups) => {
                     for (const group of groups) {
-                        for (const version of group.versions) {
-                            promisesToSettle.push(this.getResourcesForApisApiGroups(version));
-                        }
+                        const usedVersion = group.preferredVersion ? group.preferredVersion : group.versions[0];
+                        promisesToSettle.push(this.getResourcesForApisApiGroups(usedVersion));
                     }
                 })
             );
 
             promisesToFulFil.push(
                 this.getCoreApiVersions().then((versions) => {
-                    if (versions.includes('v1')) {
+                    if (versions.includes(KubernetsApiService.SUPPORTED_VERSION)) {
                         promisesToSettle.push(this.getCoreApiV1Resources());
                     } else {
-                        Promise.reject(`Only supported api version is v1!`);
+                        Promise.reject(`Only supported api version is ${KubernetsApiService.SUPPORTED_VERSION}!`);
                     }
                 })
             );
@@ -129,9 +151,9 @@ export class KubernetsApiService {
                 for (const promiseResult of promiseResults) {
                     if (promiseResult.status === 'fulfilled') {
                         this.addToKindList(promiseResult.value);
-                    } else {
+                    } /* else {
                         Promise.reject(promiseResult.reason);
-                    }
+                    } */
                 }
             });
         } catch (ex: any) {

@@ -31,6 +31,12 @@
                     "default": 600,
                     "description": "Controls the time in seconds until the information from the cluster is refreshed"
                 },
+                "yamlKubernetesCompletion.kubectl.configFilePath": {
+                    "scope": "window",
+                    "type": "string",
+                    "default": "",
+                    "description": "Controls the file path of the kubernetes config file, which holds the cluster information. If no path is specified the extension tries to find the config in the users home directory."
+                },
                 "yamlKubernetesCompletion.completion.indentation": {
                     "scope": "window",
                     "type": "number",
@@ -45,12 +51,6 @@
                         "kubernetes.yaml"
                     ],
                     "description": "Controls which files with given name are validated. Regex is supported."
-                },
-                "languageServerExample.maxNumberOfProblems": {
-                    "scope": "resource",
-                    "type": "number",
-                    "default": 100,
-                    "description": "Controls the maximum number of problems produced by the server."
                 },
                 "languageServerExample.trace.server": {
                     "scope": "window",

@@ -7,7 +7,7 @@ import {
     ConfigurationService,
     YamlKubernetesCompletionSettings,
     YamlKubernetesCompletionSettingsDiff
-} from './services/settingsService';
+} from './services/configurationService';
 import { YamlLanguageService, IYamlLanguageService } from './services/yamlLanguageService';
 import { KubernetsApiService } from './services/kubernetesApiService';
 
@@ -135,9 +135,6 @@ export class YamlLanguageServer {
     }
 
     public async onCompletion(textDocumentPosition: TextDocumentPositionParams): Promise<CompletionItem[]> {
-        // The pass parameter contains the position of the text document in
-        // which code complete got requested. For the example we ignore this
-        // info and always provide the same completion items.
         const textDocument = this.documents.get(textDocumentPosition.textDocument.uri);
 
         if (!textDocument) {
