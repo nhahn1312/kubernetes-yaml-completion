@@ -70,6 +70,10 @@ export class KubernetsApiService {
         return this.initialized;
     }
 
+    public getResourceInfo(): Map<string, string> {
+        return this.resourceInfo;
+    }
+
     private async getApisApiGroups(): Promise<k8s.V1APIGroup[]> {
         const apisApiClient = this.kubeConf.makeApiClient(k8s.ApisApi);
         const res = await apisApiClient.getAPIVersions();
@@ -111,7 +115,7 @@ export class KubernetsApiService {
         };
     }
 
-    private addToKindList(rawResourceInfo: RawKubernetesResourceInfo): void {
+    private collectResourceInfo(rawResourceInfo: RawKubernetesResourceInfo): void {
         for (const resource of rawResourceInfo.list.resources) {
             const kind = resource.kind;
             if (!this.resourceInfo.has(kind)) {
@@ -150,7 +154,7 @@ export class KubernetsApiService {
                 const promiseResults = await Promise.allSettled(promisesToSettle);
                 for (const promiseResult of promiseResults) {
                     if (promiseResult.status === 'fulfilled') {
-                        this.addToKindList(promiseResult.value);
+                        this.collectResourceInfo(promiseResult.value);
                     } /* else {
                         Promise.reject(promiseResult.reason);
                     } */

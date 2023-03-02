@@ -19,6 +19,7 @@ import {
 } from 'vscode-json-languageservice';
 import { ValidationUtil } from '../utils/validation';
 import { JSONSchema, JSONSchemaMap, JSONSchemaRef } from '../types/jsonSchema';
+import { KubernetesValidationUtil } from '../utils/kubernetes';
 
 export interface IJSONSchemaService {
     /**
@@ -251,6 +252,8 @@ export class JSONSchemaService implements IJSONSchemaService {
     private callOnDispose: Function[];
     private requestService: SchemaRequestService | undefined;
     private promiseConstructor: PromiseConstructor;
+    //nhahn[add]: new attribute
+    private kubernetesResourceInfo: Map<string, string> | undefined;
 
     private cachedSchemaForResource:
         | {
@@ -291,6 +294,11 @@ export class JSONSchemaService implements IJSONSchemaService {
         while (this.callOnDispose.length > 0) {
             this.callOnDispose.pop()!();
         }
+    }
+
+    //nhahn[add]: method to set kubernetes resource info
+    public setResourceInfo(kubernetesResourceInfo: Map<string, string> | undefined) {
+        this.kubernetesResourceInfo = kubernetesResourceInfo;
     }
 
     public onResourceChange(uri: string): boolean {
@@ -759,8 +767,41 @@ export class JSONSchemaService implements IJSONSchemaService {
             schemas.length > 0
                 ? this.createCombinedSchema(resource, schemas).getResolvedSchema()
                 : this.promise.resolve(undefined);
+
+        //nhahn[add]: prefilter kubernetes schemas to only include kinds with groups available on the cluster
+        if (this.kubernetesResourceInfo && resolvedSchema) {
+            resolvedSchema.then(
+                ((schema: ResolvedSchema | undefined) => {
+                    if (schema && schema.schema.oneOf) {
+                        schema.schema.oneOf = this.filterKubernetesSchemas(schema);
+                    }
+                    return schema;
+                }).bind(this)
+            );
+        }
+
         this.cachedSchemaForResource = { resource, resolvedSchema };
         return resolvedSchema;
+    }
+
+    //nhahn[add]: method to prefilter kubernetes schema
+    private filterKubernetesSchemas(schema: ResolvedSchema) {
+        const defsToFilter = schema.schema.oneOf;
+        if (defsToFilter) {
+            return defsToFilter.filter((def) => {
+                const schemaDef = ValidationUtil.asSchema(def);
+                const resInfoArray = schemaDef['x-kubernetes-group-version-kind'];
+                if (resInfoArray) {
+                    const resInfo = resInfoArray[0];
+                    const kind = resInfo.kind;
+                    const groupVersion = KubernetesValidationUtil.getGroupVersion(resInfo.group, resInfo.version);
+                    return (
+                        this.kubernetesResourceInfo?.has(kind) && this.kubernetesResourceInfo.get(kind) === groupVersion
+                    );
+                }
+                return false;
+            });
+        }
     }
 
     private createCombinedSchema(resource: string, schemaIds: string[]): ISchemaHandle {

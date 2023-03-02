@@ -25,6 +25,7 @@ import { JSONValidation } from './jsonValidationService';
 import { YamlCompletionService } from './yamlCompletionService';
 
 export interface IYamlLanguageService {
+    configureKubernetes(params: KubernetesParams): void;
     configure(settings: LanguageSettings): void;
     doValidation(
         document: TextDocument,
@@ -42,6 +43,10 @@ export interface IYamlLanguageService {
     getLanguageStatus(document: TextDocument, jsonDocument: JSONDocument): JSONLanguageStatus;
     doResolve(item: CompletionItem): Thenable<CompletionItem>;
     doComplete(document: TextDocument, position: Position, doc: YamlDocument): Thenable<CompletionList | null>;
+}
+
+export interface KubernetesParams {
+    resourceInfo?: Map<string, string>;
 }
 
 export class YamlLanguageService implements IYamlLanguageService {
@@ -65,6 +70,10 @@ export class YamlLanguageService implements IYamlLanguageService {
             });
         }
         this.validationService.configure(settings);
+    }
+
+    public configureKubernetes(params: KubernetesParams) {
+        this.schemaService.setResourceInfo(params.resourceInfo);
     }
 
     doValidation(

@@ -66,12 +66,22 @@ export class YamlLanguageServer {
             this.configureLanguageService(settingsDiff.settings);
         }
         if (settingsDiff.diff.changed.includes('kubectl')) {
-            this.createNewKubernetesApiService(settingsDiff.settings).then(() => {
-                //validate documents if ready
-                for (const document of this.documents.all()) {
-                    this.validateTextDocument(document);
-                }
-            });
+            this.createNewKubernetesApiService(settingsDiff.settings);
+        }
+    }
+
+    private onConfigInitialized(settings: YamlKubernetesCompletionSettings) {
+        //configure language service
+        this.configureLanguageService(settings);
+        //initialize kubernetes service
+        this.createNewKubernetesApiService(settings);
+    }
+
+    private onKubernetesStarted(): void {
+        this.languageService.configureKubernetes({ resourceInfo: this.kubernetesApiService?.getResourceInfo() });
+        //validate documents if ready
+        for (const document of this.documents.all()) {
+            this.validateTextDocument(document);
         }
     }
 
@@ -80,7 +90,7 @@ export class YamlLanguageServer {
             this.kubernetesApiService.stop();
         }
         this.kubernetesApiService = new KubernetsApiService(settings);
-        return this.kubernetesApiService.start();
+        return this.kubernetesApiService.start().then(this.onKubernetesStarted.bind(this));
     }
 
     private configureLanguageService(settings: YamlKubernetesCompletionSettings) {
@@ -95,20 +105,8 @@ export class YamlLanguageServer {
         });
     }
 
-    private onConfigInitialized(settings: YamlKubernetesCompletionSettings) {
-        //configure language service
-        this.configureLanguageService(settings);
-        //initialize kubernetes service
-        this.createNewKubernetesApiService(settings).then(() => {
-            //validate documents if ready
-            for (const document of this.documents.all()) {
-                this.validateTextDocument(document);
-            }
-        });
-    }
-
     private async validateTextDocument(textDocument: TextDocument): Promise<void> {
-        if (!this.configurationService.isInitialized || !this.kubernetesApiService?.isInitialized()) {
+        if (!this.configurationService.isInitialized() || !this.kubernetesApiService?.isInitialized()) {
             return Promise.resolve();
         }
 
