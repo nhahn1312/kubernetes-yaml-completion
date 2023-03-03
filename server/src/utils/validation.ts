@@ -52,11 +52,23 @@ export class ValidationUtil {
     }
 
     //nhahn[add]: method to find property by key
-    public static getPropertyByKey(node: ObjectASTNode, key: string): string | number | boolean | null | undefined {
+    public static getPropertyValueByKey(
+        node: ObjectASTNode,
+        key: string
+    ): string | number | boolean | null | undefined {
         for (const property of node.properties) {
             if (property.keyNode.value == key) {
                 return property.valueNode?.value;
             }
         }
+    }
+
+    //nhahn[add]: method to find string property
+    public static getStringPropertyValue(node: ObjectASTNode, key: string): string | undefined {
+        const value = ValidationUtil.getPropertyValueByKey(node, key);
+        if (typeof value === 'string') {
+            return value;
+        }
+        return undefined;
     }
 }

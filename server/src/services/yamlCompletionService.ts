@@ -19,7 +19,10 @@ export class CompletionsCollectorImpl implements CompletionsCollector {
     }
 
     add(suggestion: CompletionItem): void {
-        this.result.items.push(suggestion);
+        const exists = this.result.items.find((item) => item.label === suggestion.label);
+        if (!exists) {
+            this.result.items.push(suggestion);
+        }
     }
     error(message: string): void {
         console.error(message);

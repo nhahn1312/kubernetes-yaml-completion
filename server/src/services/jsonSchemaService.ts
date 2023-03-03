@@ -790,11 +790,10 @@ export class JSONSchemaService implements IJSONSchemaService {
         if (defsToFilter) {
             return defsToFilter.filter((def) => {
                 const schemaDef = ValidationUtil.asSchema(def);
-                const resInfoArray = schemaDef['x-kubernetes-group-version-kind'];
-                if (resInfoArray) {
-                    const resInfo = resInfoArray[0];
+                const resInfo = KubernetesValidationUtil.getGroupVersionKindFromSchema(schemaDef);
+                if (resInfo) {
                     const kind = resInfo.kind;
-                    const groupVersion = KubernetesValidationUtil.getGroupVersion(resInfo.group, resInfo.version);
+                    const groupVersion = resInfo.groupVersion;
                     return (
                         this.kubernetesResourceInfo?.has(kind) && this.kubernetesResourceInfo.get(kind) === groupVersion
                     );

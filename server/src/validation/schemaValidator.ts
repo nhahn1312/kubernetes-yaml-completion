@@ -22,6 +22,7 @@ import { ValidationResult } from './validationResult';
 import { IEvaluationContext, ISchemaCollector, NoOpSchemaCollector } from './schemaCollector';
 import { ValidationUtil } from '../utils/validation';
 import { JSONSchema, JSONSchemaRef } from '../types/jsonSchema';
+import { KubernetesValidationUtil } from '../utils/kubernetes';
 
 export interface JSONDocumentConfig {
     collectComments?: boolean;
@@ -73,6 +74,33 @@ export class SchemaValidator {
                 /^((([0-9a-f]{1,4}:){7}([0-9a-f]{1,4}|:))|(([0-9a-f]{1,4}:){6}(:[0-9a-f]{1,4}|((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9a-f]{1,4}:){5}(((:[0-9a-f]{1,4}){1,2})|:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9a-f]{1,4}:){4}(((:[0-9a-f]{1,4}){1,3})|((:[0-9a-f]{1,4})?:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9a-f]{1,4}:){3}(((:[0-9a-f]{1,4}){1,4})|((:[0-9a-f]{1,4}){0,2}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9a-f]{1,4}:){2}(((:[0-9a-f]{1,4}){1,5})|((:[0-9a-f]{1,4}){0,3}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9a-f]{1,4}:){1}(((:[0-9a-f]{1,4}){1,6})|((:[0-9a-f]{1,4}){0,4}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(:(((:[0-9a-f]{1,4}){1,7})|((:[0-9a-f]{1,4}){0,5}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:)))$/i
         }
     };
+
+    //nhahn[add]: filter schemas based on apiVersion and kind if specified only if it is the root node
+    public static filterOneOfSchemasForKubernetes(node: ASTNode, schemaRefs: JSONSchemaRef[]): JSONSchemaRef[] {
+        if (!node.parent && node.type === 'object') {
+            const apiVersion = ValidationUtil.getStringPropertyValue(node, 'apiVersion');
+            const kind = ValidationUtil.getStringPropertyValue(node, 'kind');
+
+            if (apiVersion || kind) {
+                schemaRefs = schemaRefs.filter((schemaRef) => {
+                    let keep = true;
+                    const schema = ValidationUtil.asSchema(schemaRef);
+                    const groupVersionKind = KubernetesValidationUtil.getGroupVersionKindFromSchema(schema);
+
+                    if (groupVersionKind) {
+                        if (apiVersion) {
+                            keep &&= groupVersionKind.groupVersion === apiVersion;
+                        }
+                        if (kind) {
+                            keep &&= groupVersionKind.kind == kind;
+                        }
+                    }
+                    return keep;
+                });
+            }
+        }
+        return schemaRefs;
+    }
 
     public static validate(
         n: ASTNode | undefined,
@@ -163,7 +191,8 @@ export class SchemaValidator {
 
             const testAlternatives = (alternatives: JSONSchemaRef[], maxOneMatch: boolean) => {
                 const matches = [];
-
+                //nhahn[add]: filter schemas based on apiVersion and kind if specified only if it is the root node
+                alternatives = SchemaValidator.filterOneOfSchemasForKubernetes(node, alternatives);
                 // remember the best match that is used for error messages
                 let bestMatch:
                     | { schema: JSONSchema; validationResult: ValidationResult; matchingSchemas: ISchemaCollector }
@@ -212,15 +241,12 @@ export class SchemaValidator {
                     }
                 }
 
-                //nhahn[edit]: Changed Use kubernetes kind to find appropriate schema
                 if (matches.length > 1 && maxOneMatch) {
-                    const matchesWithGroupVersionKind = matches.filter((value, index) => {
-                        return !!value['x-kubernetes-group-version-kind'];
-                    });
-
                     validationResult.problems.push({
                         location: { offset: node.offset, length: 1 },
-                        message: l10n.t('Matches multiple schemas when only one must validate.')
+                        //nhahn[edit]: Give user other validation message to specify kind and apiVersion to get proper completion
+                        message:
+                            'There is more than one kind matching your given configuration. Please specify kind and apiVersion'
                     });
                 }
                 if (bestMatch) {
